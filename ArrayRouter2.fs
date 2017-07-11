@@ -10,7 +10,11 @@ open FSharp.Core.Printf
 open Microsoft.FSharp.Reflection
 open System.Collections.Generic
 open Giraffe.HttpHandlers
-open Giraffe.RouterParsers
+open Giraffe.RouterParseCont
+
+type Parser = Parser<HttpHandlerResult>
+
+let formatMap = ParseFactory.FormatMap<HttpHandlerResult>()
 
 let [<Literal>] Parsy  = '^' // this character is invalid url char so can be used internally as placeholder instruction
 let [<Literal>] Endy   = '|'
@@ -386,7 +390,7 @@ let router2 (paths: PathNode list) =
     
     let tryParse = FSharpFunc<_,_,_,_>.Adapt _tryParse
 
-    let _applyParse path (state:ParseState2) offset (cont:obj [] -> Task<HttpContext option>) (fail:unit->Task<HttpContext option>) =
+    let _applyParse path offset (cont:obj [] -> Task<HttpContext option>) (fail:unit->Task<HttpContext option>) =
         let results = Array.zeroCreate<obj>(state.TotalArgs)
         let rec pgo i =                
             if i >= 0 then
@@ -406,18 +410,14 @@ let router2 (paths: PathNode list) =
 
     let goEnding (path:string,ctx,p,n,failFn) =
             
-                match fary.[int nary.[n].Hop] with
-                | HandleFn f -> 
-                    if p = path.Length 
-                    then f ctx
-                    else failFn ()
-                | ParseApplyEndSingle (prs,fn) ->
-                    match prs.Invoke(path,p,path.Length - 1) with
-                    | struct(true,v) -> (fn v) ctx
-                    | struct(false,_)-> failFn ()
-                | xfn -> failwith(sprintf "unhandled funciton match case %A" xfn)
-            
-        
+        match fary.[int nary.[n].Hop] with
+        | HandleFn f -> 
+            if p = path.Length 
+            then f ctx
+            else failFn ()
+        | ParseApplyEndSingle (prs,fn) -> prs(path,p,path.Length - 1,(fun v -> fn v ctx),failFn) 
+        | xfn -> failwith(sprintf "unhandled funciton match case %A" xfn)
+    
     let parseEnding (path,ctx,p,state,pfn:HandleFn,failFn:unit -> Task<HttpContext option>) =
         match pfn with
         | ParseApplyEndTuple (prs,fn) ->

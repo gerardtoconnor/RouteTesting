@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="RouterParsers.fs"/>
+    <Compile Include="RouteParseCont.fs"/>
     <Compile Include="ArrayRouter.fs"/>
     <Compile Include="ArrayRouter2.fs"/>
     <Compile Include="TokenRouter.fs"/>
