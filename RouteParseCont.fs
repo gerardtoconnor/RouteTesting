@@ -14,19 +14,19 @@ let failure      = struct (false,Unchecked.defaultof<obj>)
 /// Private Range Parsers that quickly try parse over matched range (all fpos checked before running in preceeding functions)
 
 let private stringParse (path:string,ipos,fpos,cont,_) = 
-    path.Substring(ipos,fpos - ipos + 1) |> cont
+    path.Substring(ipos,fpos - ipos + 1) |> box |> cont
 
-let private  charParse (path:string,ipos,_,cont,_) = path.[ipos] |> cont // this is not ideal method (but uncommonly used)
+let private  charParse (path:string,ipos,_,cont,_) = path.[ipos] |> box |> cont // this is not ideal method (but uncommonly used)
 
-let private boolParse (path:string,ipos,fpos,cont:bool->'T,fail:unit->'T) =
+let private boolParse (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) =
     if between (fpos - ipos) 4 5 then 
         match path.[ipos] with
-        | 't' | 'T' -> true  |> cont // todo: Laxy matching, i'll complete later
-        | 'f' | 'F' -> false |> cont
+        | 't' | 'T' -> true  |> box |> cont // todo: Laxy matching, i'll complete later
+        | 'f' | 'F' -> false |> box |> cont
         | _ -> fail ()
     else fail ()
 
-let private intParse (path:string,ipos,fpos,cont:int->'T,fail:unit->'T) =
+let private intParse (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) =
 
     let mutable result = 0
     let mutable negNumber = false
@@ -36,7 +36,7 @@ let private intParse (path:string,ipos,fpos,cont:int->'T,fail:unit->'T) =
             result <- (result * 10) + charDiff
             if pos = fpos then
                 if negNumber then - result else result 
-                |> cont 
+                |> box |> cont 
             else go (pos + 1)       // continue iter
         else fail ()
     //Start Parse taking into account sign operator
@@ -45,7 +45,7 @@ let private intParse (path:string,ipos,fpos,cont:int->'T,fail:unit->'T) =
     | '+' -> go (ipos + 1)
     | _ -> go (ipos)
     
-let private int64Parse (path:string,ipos,fpos,cont:int64->'T,fail:unit->'T) =
+let private int64Parse (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) =
 
     let mutable result = 0L
     let mutable negNumber = false
@@ -55,7 +55,7 @@ let private int64Parse (path:string,ipos,fpos,cont:int64->'T,fail:unit->'T) =
             result <- (result * 10L) + charDiff
             if pos = fpos then
                 if negNumber then - result else result 
-                |> cont
+                |> box |> cont
             else go (pos + 1)       // continue iter
         else fail ()
     //Start Parse taking into account sign operator
@@ -68,7 +68,7 @@ let private int64Parse (path:string,ipos,fpos,cont:int64->'T,fail:unit->'T) =
 let decPower = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.|] 
 let decDivide = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.|] |> Array.map (fun d -> 1. / d) // precompute inverse once at compile time
     
-let floatParse (path:string,ipos,fpos,cont:float->'T,fail:unit->'T) =
+let floatParse (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) =
     let mutable result = 0.
     let mutable decPlaces = 0
     let mutable negNumber = false
@@ -132,7 +132,7 @@ let floatParse2 (path:string) ipos fpos =
     | _ -> go (ipos)
 
 
-let formatMap =
+let formatMap<'T> =
     dict [
     // Char    Range Parser
     // ---------------  -------------------------------------------
