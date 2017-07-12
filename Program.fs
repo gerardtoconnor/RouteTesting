@@ -110,29 +110,27 @@ type RouterTest () =
         ]
 
     [<Benchmark>]
-    member  x.RouteArray() =
-        routeArray 
-        |> Array.map (fun route -> 
-            let ctx = Substitute.For<HttpContext>()
-            ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
-            ctx.Response.Body <- new MemoryStream()
-            
-            Task.Factory.StartNew(fun () -> araryApi ctx))
-        |> Task.WhenAll
-        |> (fun t -> t.Wait())
-
-    [<Benchmark>]
     member  x.RouteToken() =
         routeArray 
-        |> Array.map (fun route -> 
+        |> Array.Parallel.iter (fun route -> 
             let ctx = Substitute.For<HttpContext>()
             ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
             ctx.Response.Body <- new MemoryStream()
             
-            Task.Factory.StartNew(fun () -> tokenApi ctx))
-        |> Task.WhenAll
-        |> (fun t -> t.Wait())
-        
+            Task.Factory.StartNew(fun () -> tokenApi ctx).Wait() )
+
+    [<Benchmark>]
+    member  x.RouteArray() =
+        routeArray 
+        |> Array.Parallel.iter (fun route -> 
+            let ctx = Substitute.For<HttpContext>()
+            ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
+            ctx.Response.Body <- new MemoryStream()
+            
+            Task.Factory.StartNew(fun () -> araryApi ctx).Wait() )
+
+
+
 [<EntryPoint>]
 let main argv =
     printfn "Hello World from F#!"

@@ -13,11 +13,11 @@ open Giraffe.HttpHandlers
 open Giraffe.RouterParsers
 
 let [<Literal>] Parsy  = '^' // this character is invalid url char so can be used internally as placeholder instruction
-let [<Literal>] BParsy = 94uy  // '^'
+//let [<Literal>] BParsy = 94uy  // '^'
 let [<Literal>] Endy   = '|'
-let [<Literal>] BEndy  = 124uy // '|'
+//let [<Literal>] BEndy  = 124uy // '|'
 let [<Literal>] Forky  = '¬'
-let [<Literal>] BForky = 172uy // '¬'
+//let [<Literal>] BForky = 172uy // '¬'
 
 let typeMap = function
     | 'b' -> typeof<bool>   // bool
@@ -159,11 +159,11 @@ and CNode(c:char) =
 
 [<Struct>]
 type AryNode =
-    val Char  : byte
-    val Hop   : uint16
+    val Char  : char
+    val Hop   : int
     
-    new (char,hop) = { Char = char ; Hop = hop }
-    new (char:char,hop:int) = { Char = byte char ; Hop = uint16 hop }
+//    new (char,hop) = { Char = char ; Hop = hop }
+    new (char:char,hop:int) = { Char = char ; Hop = hop }
 
 /// PathNode
 /////////////////////////
@@ -352,7 +352,7 @@ let router (paths: PathNode list) =
                 |> List.iter (fun (i,node) ->  
                                 //printfn "processing repeat node %A" node  
                                 let onode = ary.[ipos + i] // get place holder
-                                ary.[ipos + i] <- AryNode(onode.Char,uint16 ary.Count) // update placeholder with valid hop 
+                                ary.[ipos + i] <- AryNode(onode.Char,ary.Count) // update placeholder with valid hop 
                                 go node // run this node to populate array
                                 )
             
@@ -458,8 +458,8 @@ let router (paths: PathNode list) =
             // Parse function begin
             
                 match nary.[n].Char with
-                | BParsy ->
-                    match fary.[int nary.[n].Hop] with
+                | Parsy ->
+                    match fary.[nary.[n].Hop] with
                     | ParseStart (i,prs,fp) ->
                         let ps = ParseState(i)
                         ps.Parsers.[0] <- prs
@@ -472,15 +472,15 @@ let router (paths: PathNode list) =
                         state.CurArg <- i
                         parsing(p,n + 1,p,nfp,state)                        
                     | xfn -> failwith(sprintf "unhandled parse Continue function match case %A" xfn) 
-                | BEndy  ->
+                | Endy  ->
                     parseEnding(path,ctx,p,state,fary.[int nary.[n].Hop],noneTask)
-                | BForky ->
+                | Forky ->
                     parseEnding(path,ctx,p,state,fary.[int nary.[n].Hop], 
                         (fun () -> parsing(retry,n + 1,retry,n + 1,state) )) // todo: recheck logic !
                 | x ->
                     let rec tryPath(ip) =
                         if ip < path.Length then 
-                            if byte path.[ip] = x then
+                            if path.[ip] = x then
                                 if state.PEnd.[state.CurArg] = 0 then // HACK: need to impliment better logic here to get parse end
                                     state.PEnd.[state.CurArg] <- ip - 1
                                 parsing(ip + 1,int nary.[n].Hop,retry,fp,state)
@@ -501,7 +501,7 @@ let router (paths: PathNode list) =
             if n < nary.Length then 
                 // matching function begin
                 match nary.[n].Char with
-                | BParsy ->
+                | Parsy ->
                     match fary.[int nary.[n].Hop] with
                     | ParseStart (i,prs,fp) ->
                         let ps = ParseState(i)
@@ -510,13 +510,13 @@ let router (paths: PathNode list) =
                         ps.Retry <- (n + 1)
                         parsing(p,n + 1,p,fp,ps)
                     | xfn -> failwith(sprintf "unhandled Parse funciton match case %A" xfn) 
-                | BEndy  ->
+                | Endy  ->
                     goEnding(path,ctx,p,n,noneTask)
-                | BForky ->
+                | Forky ->
                     goEnding(path,ctx,p,n,(fun () -> go(p,n + 1) ))
                 | x ->
                     if p < path.Length then
-                        if byte path.[p] = x then
+                        if path.[p] = x then
                             go(p + 1,int nary.[n].Hop)
                         else
                             match int nary.[n].Hop - n with
