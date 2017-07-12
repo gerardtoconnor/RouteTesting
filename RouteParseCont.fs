@@ -66,8 +66,8 @@ module ParseFactory =
             | _ -> go (ipos)
 
 
-        let decPower = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.|] 
-        let decDivide = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.|] |> Array.map (fun d -> 1. / d) // precompute inverse once at compile time
+        let decPower = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.;1000000000.|] 
+        let decDivide = [|1.;10.;100.;1000.;10000.;100000.;1000000.;10000000.;100000000.;100000000.;1000000000.|] |> Array.map (fun d -> 1. / d) // precompute inverse once at compile time
             
         let floatParse (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) =
             let mutable result = 0.
@@ -99,38 +99,40 @@ module ParseFactory =
             | '+' -> go (ipos + 1)
             | _ -> go (ipos)
 
-    // let floatParse2 (path:string) ipos fpos =
-    //     let mutable result = 0.
-    //     let mutable nominator = 0L
-    //     let mutable demoninator = 0L
-    //     let mutable decPlaces = 0
-    //     let mutable negNumber = false
-        
-    //     let rec go pos =
-    //         if path.[pos] = '.' then
-    //             decPlaces <- 1
-    //             if pos < fpos then go (pos + 1) else failure
-    //         else
-    //             let charDiff = int path.[pos] - int '0'
-    //             if between charDiff 0 9 then
-    //                 if decPlaces = 0 then 
-    //                     nominator <- (nominator * 10L) + int64 charDiff
-    //                 else
-    //                     //result <- result + charDiff 
-    //                     demoninator <- (demoninator * 10L) + int64 charDiff 
-    //                     //result <- result + ( charDiff * decPower.[decPlaces]) // char is divided using multiplication of pre-computed divisors
-    //                     decPlaces <- decPlaces + 1
-    //                 if pos = fpos || decPlaces > 9 then
-    //                     (float nominator) + (float demoninator) * (decPower.[decPlaces]) * if negNumber then - 1. else 1. 
-    //                     |> box |> rtrn 
-    //                 else go (pos + 1)   // continue iter
-    //             else failure   // Invalid Character in path
+        let floatParse2 (path:string,ipos,fpos,cont:obj->'T,fail:unit->'T) : 'T =
+            
+            let rec godec(pos,n,d,dp,nn) = 
+                let charDiff = int path.[pos] - int '0'
+                if between charDiff 0 9 then
+                    let d' = (d * 10L) + (int64 charDiff)
+                    let dp' = dp + 1
+                    if pos = fpos || dp > 9 then
+                        (float n) + ((float d') / (decPower.[dp + 1 ])) * if nn then - 1. else 1. 
+                        |> box |> cont 
+                    else
+                        godec (pos + 1,n,d',dp',nn)
+                else fail ()
 
-        // //Start Parse taking into account sign operator
-        // match path.[ipos] with
-        // | '-' -> negNumber <- true ; go (ipos + 1)
-        // | '+' -> go (ipos + 1)
-        // | _ -> go (ipos)
+            let rec go(pos,n,nn) =
+                if path.[pos] = '.' then
+                    if pos < fpos 
+                    then godec(pos + 1,n,0L,1,nn) 
+                    else fail ()
+                else
+                    let charDiff = int path.[pos] - int '0'
+                    if between charDiff 0 9 then
+                        let n' = (n * 10L) + (int64 charDiff)
+                        if pos = fpos then
+                            (float n') * if nn then - 1. else 1. 
+                            |> box |> cont 
+                        else go (pos + 1,n',nn)   // continue iter
+                    else fail()  // Invalid Character in path
+
+            // //Start Parse taking into account sign operator
+            match path.[ipos] with
+            | '-' -> go (ipos + 1,0L,true)
+            | '+' -> go (ipos + 1,0L,false)
+            | _ -> go (ipos,0L,false)
 
     // Char    Range Parser
     // ---------------  -------------------------------------------
@@ -141,8 +143,15 @@ module ParseFactory =
             ('i',  intParse   )  // int
             ('d',  int64Parse )  // int64
             ('f',  floatParse )  // float
+            ('z',  floatParse2 )  // float
         ]
 
     // match floatParse2 "123.0123456789" 0 11 with
     // | Some f -> printfn ">>> %.10f" (f :?> float)
-    // | None -> ()
+   // | None -> ()
+
+// let parseDict = ParseFactory.FormatMap<unit> ()
+// let parse1 = parseDict.['f']
+// let parse2 = parseDict.['z']
+
+//parse2 ("start4188.088825874end",5,18,(fun v -> printf "%.9f," (v :?> float)),(fun () -> ()))
