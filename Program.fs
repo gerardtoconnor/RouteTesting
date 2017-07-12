@@ -14,7 +14,7 @@ open Giraffe.HttpRouteArray
 
 type RouterTest () =
     
-    let routeArray = [
+    let routeArray = [|
         "/"
         "/test"
         "/about"
@@ -39,7 +39,7 @@ type RouterTest () =
         "/auth/manager/executive/mis"
         "/auth/manager/executive/area/globaloperationcentral"
         "/auth/manager/executive/area/london/district/east/costcode8087"
-    ] 
+    |] 
 
     let tokenApi : HttpHandler =
         routeTrie [
@@ -111,22 +111,28 @@ type RouterTest () =
 
     [<Benchmark>]
     member  x.RouteArray() =
-        for route in routeArray do
+        routeArray 
+        |> Array.map (fun route -> 
             let ctx = Substitute.For<HttpContext>()
             ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
             ctx.Response.Body <- new MemoryStream()
             
-            Task.Factory.StartNew(fun () -> araryApi ctx).Wait()
+            Task.Factory.StartNew(fun () -> araryApi ctx))
+        |> Task.WhenAll
+        |> (fun t -> t.Wait())
 
     [<Benchmark>]
     member  x.RouteToken() =
-        for route in routeArray do
+        routeArray 
+        |> Array.map (fun route -> 
             let ctx = Substitute.For<HttpContext>()
             ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
             ctx.Response.Body <- new MemoryStream()
             
-            Task.Factory.StartNew(fun () -> tokenApi ctx).Wait()
-          
+            Task.Factory.StartNew(fun () -> tokenApi ctx))
+        |> Task.WhenAll
+        |> (fun t -> t.Wait())
+        
 [<EntryPoint>]
 let main argv =
     printfn "Hello World from F#!"
