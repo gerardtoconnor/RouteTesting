@@ -87,7 +87,7 @@ type RouterTest () =
             ]
         ]
 
-    let araryApi : HttpHandler =
+    let araryApi =
         router [
             route "/" => text "Hello world, from Giraffe!"
             route "/test" => text "Giraffe test working"
@@ -125,20 +125,17 @@ type RouterTest () =
     member  x.RouteArray() =
         routeArray 
         |> Array.iter (fun route -> 
-            let ctx = Substitute.For<HttpContext>()
-            ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
-            ctx.Response.Body <- new MemoryStream()
-            
-            Task.Factory.StartNew(fun () -> araryApi ctx).Wait() )
+            let ctx = Dummy(route)
+            araryApi ctx
+            )
 
     [<Benchmark>]
     member  x.RouteTrie() =
         routeArray 
         |> Array.iter (fun route -> 
-            let ctx = Substitute.For<HttpContext>()
-            ctx.Request.Path.ReturnsForAnyArgs (PathString(route)) |> ignore
-            ctx.Response.Body <- new MemoryStream()
-            Task.Factory.StartNew(fun () -> trieApi ctx).Wait() )
+            let ctx = Dummy(route)
+            trieApi ctx
+            )
 
 type ParseTest() =
 
