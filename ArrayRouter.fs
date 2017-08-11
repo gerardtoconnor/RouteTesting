@@ -9,6 +9,7 @@ open Microsoft.AspNetCore.Http
 open FSharp.Core.Printf
 open Microsoft.FSharp.Reflection
 open System.Collections.Generic
+open Giraffe.Tasks
 open Giraffe.HttpHandlers
 open Giraffe.RouterParsers
 
@@ -214,7 +215,7 @@ type ParseState(argCount:int) =
     member val CurArg = 0 with get,set
     member val TotalArgs = argCount with get
 
-let router (paths: PathNode list) =
+let router (paths: PathNode list) : HttpHandler =
 
     let nary,fary = 
 
@@ -408,28 +409,28 @@ let router (paths: PathNode list) =
 
     /// completion function helpers 
 
-    let goEnding (path:string,ctx,p,n,failFn) =
+    let goEnding (path:string,next,ctx,p,n,failFn) =
             
                 match fary.[int nary.[n].Hop] with
                 | HandleFn f -> 
                     if p = path.Length 
-                    then f ctx
+                    then f next ctx
                     else failFn ()
                 | ParseApplyEndSingle (prs,fn) ->
                     match prs.Invoke(path,p,path.Length - 1) with
-                    | struct(true,v) -> (fn v) ctx
+                    | struct(true,v) -> (fn v) next ctx
                     | struct(false,_)-> failFn ()
                 | xfn -> failwith(sprintf "unhandled funciton match case %A" xfn)
             
         
-    let parseEnding (path,ctx,p,state,pfn:HandleFn,failFn:unit -> Task<HttpContext option>) =
+    let parseEnding (path,next,ctx,p,state,pfn:HandleFn,failFn:unit -> Task<HttpContext option>) =
         match pfn with
         | ParseApplyEndTuple (prs,fn) ->
             applyParse.Invoke( path, state, -2,
                 (fun results ->
                     tryParse.Invoke((fun v ->
                         results.[state.TotalArgs - 1] <- v
-                        (fn results) ctx        
+                        (fn results) next ctx        
                         ), 
                         failFn,
                         prs.Invoke(path,p,path.Length - 1))
@@ -438,7 +439,7 @@ let router (paths: PathNode list) =
         | ParseCompleteSingle (fn) ->
             if p = path.Length then 
                 tryParse.Invoke(
-                    (fun v -> (fn v) ctx),
+                    (fun v -> (fn v) next ctx),
                     failFn,
                     state.Parsers.[0].Invoke(path, state.PStart.[0], state.PEnd.[0]))
             else failFn ()
@@ -446,12 +447,12 @@ let router (paths: PathNode list) =
         | ParseCompleteTuple (fn) ->
             if p = path.Length then 
                 applyParse.Invoke(path, state, -1,
-                    (fun results -> (fn results) ctx),
+                    (fun results -> (fn results) next ctx),
                     failFn)
             else failFn ()
         | xfn -> failFn () 
 
-    let processPath(path:string,ctx) =
+    let processPath(path:string,next,ctx) =
         // Parsing recursive funciton with more state for parsing
         let rec parsing (p,n,retry,fp,state:ParseState) : Task<HttpContext option> =                
         
@@ -473,9 +474,9 @@ let router (paths: PathNode list) =
                         parsing(p,n + 1,p,nfp,state)                        
                     | xfn -> failwith(sprintf "unhandled parse Continue function match case %A" xfn) 
                 | Endy  ->
-                    parseEnding(path,ctx,p,state,fary.[int nary.[n].Hop],noneTask)
+                    parseEnding(path,next,ctx,p,state,fary.[int nary.[n].Hop],noneTask)
                 | Forky ->
-                    parseEnding(path,ctx,p,state,fary.[int nary.[n].Hop], 
+                    parseEnding(path,next,ctx,p,state,fary.[int nary.[n].Hop], 
                         (fun () -> parsing(retry,n + 1,retry,n + 1,state) )) // todo: recheck logic !
                 | x ->
                     let rec tryPath(ip) =
@@ -511,9 +512,9 @@ let router (paths: PathNode list) =
                         parsing(p,n + 1,p,fp,ps)
                     | xfn -> failwith(sprintf "unhandled Parse funciton match case %A" xfn) 
                 | Endy  ->
-                    goEnding(path,ctx,p,n,noneTask)
+                    goEnding(path,next,ctx,p,n,noneTask)
                 | Forky ->
-                    goEnding(path,ctx,p,n,(fun () -> go(p,n + 1) ))
+                    goEnding(path,next,ctx,p,n,(fun () -> go(p,n + 1) ))
                 | x ->
                     if p < path.Length then
                         if path.[p] = x then
@@ -532,10 +533,10 @@ let router (paths: PathNode list) =
         go (0,0)                                           
     
     //use compiled instruciton & function arrays to process path queries
-    fun (ctx:HttpContext) ->
+    fun next (ctx:HttpContext) ->
         // use adapted functions (FSharpFunc<_,_,_>.Adapt(f)) for runtime (esp rec) funcs with no partial application & multiple args         
         let path : string = ctx.Request.Path.Value
-        processPath(path,ctx)          
+        processPath(path,next,ctx)          
         
 /// handler functions (only 2 needed thus far, )
 /////////////////////
@@ -570,3 +571,10 @@ let routef (fmt:StringFormat<'U,'T>) (fn:'T -> HttpHandler) =
                         let tl = Parse(fmtc) :: Token(path.Substring(i,n - i) )::acc
                         go (n + 2) tl (argCount + 1)
     go 0 [] 0
+
+type Dummy<'T>() = class end
+
+let test (fmt:StringFormat<'a -> 'b,'b>) =
+    Dummy<'a>()
+
+let d = test "this%ithat"
