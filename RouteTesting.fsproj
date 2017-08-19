@@ -5,6 +5,7 @@
     <TargetFramework>netcoreapp1.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CurryTest.fs"/>
     <Compile Include="RouterParsers.fs"/>
     <Compile Include="RouteParseCont.fs"/>
     <Compile Include="ArrayRouter.fs"/>

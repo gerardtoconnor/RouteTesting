@@ -13,6 +13,16 @@ open Giraffe.Tasks
 open Giraffe.HttpHandlers
 open Giraffe.RouterParsers
 
+
+
+open FSharp.Core.LanguagePrimitives
+open System
+open System.Collections
+open System.Collections.Generic
+open System.Diagnostics
+open System.Globalization
+
+
 let [<Literal>] Parsy  = '^' // this character is invalid url char so can be used internally as placeholder instruction
 //let [<Literal>] BParsy = 94uy  // '^'
 let [<Literal>] Endy   = '|'
@@ -572,9 +582,74 @@ let routef (fmt:StringFormat<'U,'T>) (fn:'T -> HttpHandler) =
                         go (n + 2) tl (argCount + 1)
     go 0 [] 0
 
-type Dummy<'T>() = class end
+// type Dummy<'T>() = class end
 
-let test (fmt:StringFormat<'a -> 'b,'b>) =
-    Dummy<'a>()
+type Eq<'a> =
+    abstract parse : string * ('a -> HttpHandler) 
 
-let d = test "this%ithat"
+
+
+// type Eq<'a,'b> =
+//     abstract parse : string * ('a -> 'b -> HttpHandler) 
+
+// type Eq<'a,'b,'c> =
+//     abstract parse : StringFormat<'a -> 'b -> 'c -> HttpHandler,HttpHandler> * ('a -> 'b -> 'c -> HttpHandler) 
+
+// type Binder = class end
+// type Binder with
+    static member inline Bind(fn: HttpHandler, part:string ) =
+        fn
+    static member inline Bind(fn: int -> _ , part:string ) =
+        let next = (int part) |> fn
+        Binder.Bind(next,part)
+
+    static member inline Bind(fn: string -> _ , part:string ) =
+        let next = part |> fn
+        Binder.Bind(next,part)
+
+    static member inline Parse<'T>(fmt:StringFormat<'T,HttpHandler>, fn: 'T ) : HttpHandler =
+        Binder.Bind( fmt.Value , fn)
+
+    // static member Parse(fmt:StringFormat<'a -> HttpHandler,HttpHandler>, fn: 'a -> HttpHandler ) =
+    //     let chars = fmt.Value.ToCharArray()
+    //     fn (Bind() )
+
+
+type IParse = string -> int -> int  
+
+type IParser<'T> = IParse -> 'T 
+
+type IBinder<'T>(fmt:StringFormat<'T,HttpHandler>, fn: 'T) =
+
+    let complied = fmt.Value.Split('%') |> List.ofArray
+    member x.Bind(fn: HttpHandler, part:string ) =
+        fn
+    member x.Bind(fn: int -> _ , part:string ) =
+        let next = (int part) |> fn
+        x.Bind(next,part)
+
+    member x.Bind(fn: string -> _ , part:string ) =
+        let next = part |> fn
+        x.Bind(next,part)
+
+    member x.Apply(path:string) : HttpHandler =
+        let rec 
+        x.Bind()
+ 
+
+let test = Binder.Parse("test%sand%i",(fun s i -> Unchecked.defaultof<HttpHandler> ))
+        
+        //Binder.Parse(fmt.Value,fn)
+    //static member Parse(path:string,fn: int32 -> HttpHandler) : HttpHandler = int path |> fn
+
+// let inline maps (fmt:StringFormat<'a->HttpHandler,HttpHandler> ,fn: 'a->HttpHandler ) : HttpFuncResult =
+    
+// let router (fmt:String)
+
+// let inline mapper<'T> (path:string,fn:'T -> unit) : unit
+//     when 'T : int32 = (int path) |> fn
+
+// let test (fmt:StringFormat<'a -> 'b,'b>) =
+//     Dummy<'a>()
+
+// let d = test "this%ithat"
