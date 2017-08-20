@@ -595,9 +595,7 @@ type Eq<'a> =
 // type Eq<'a,'b,'c> =
 //     abstract parse : StringFormat<'a -> 'b -> 'c -> HttpHandler,HttpHandler> * ('a -> 'b -> 'c -> HttpHandler) 
 
-type IParse = string * int * int  
-
-type IParser<'T> = IParse -> 'T 
+type IParser<'T> = string * int * int -> 'T 
 
 type System.Int32 with 
     static member GiraffeParse (route:string,start,endy) = int (route.Substring(start,endy - start))
@@ -606,12 +604,38 @@ type System.String with
 
 type Binder = class end
 type Binder with
-    static member inline Bind<'a when 'a : not struct>(fn: HttpHandler, part:string ) =
-        fn
+    static member inline Bind< ^a, ^b, ^c 
+                    when ^a : (static member GiraffeParse : string * int * int -> ^a)
+                    and  ^b : (static member GiraffeParse : string * int * int -> ^b)
+                    and  ^c : (static member GiraffeParse : string * int * int -> ^c)
+                    >(fn: ^a -> ^b -> ^c -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
+        let nfn = fn av
+        Binder.Bind< ^b, ^c>(nfn,path,parts,pos + 1)
 
-    static member inline Bind< ^a when ^a : (static member GiraffeParse : string * int * int -> ^a)>(fn: ^a -> _ , part:string ) =
-        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(part, 1, 4))
-        Binder.Bind<_>(fn av,part)
+    static member inline Bind< ^b, ^c 
+                    when ^b : (static member GiraffeParse : string * int * int -> ^b)
+                    and  ^c : (static member GiraffeParse : string * int * int -> ^c)
+                    >(fn: ^b -> ^c -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^b = (^b : (static member GiraffeParse : string * int * int -> ^b)(path,s1,e1))
+        Binder.Bind< ^c>(fn av,path,parts,pos + 1)
+        
+    static member inline Bind< ^c 
+                    when ^c : (static member GiraffeParse : string * int * int -> ^c)
+                    >(fn: ^c -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^c = (^c : (static member GiraffeParse : string * int * int -> ^c)(path,s1,e1))
+        fn av
+
+    
+    // static member inline Bind<'a when 'a : not struct>(fn: HttpHandler, part:string ) =
+    //     fn
+
+    // static member inline Bind< ^a when ^a : (static member GiraffeParse : IParser< ^a>)>(fn: ^a -> _ , part:string ) =
+    //     let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(part, 1, 4))
+    //     Binder.Bind<_>(fn av,part)
 
         // let next = (int part) |> fn
         // Binder.Bind(next,part)
@@ -629,34 +653,47 @@ type Binder with
 
 let handler  = Binder.Parse<_>("foo/%i/%i",(fun i s -> Unchecked.defaultof<HttpHandler> ))
 
+
 type IBinder(fmt:StringFormat<'T,HttpHandler>, ifn: 'T ) =
 
     let complied = fmt.Value.Split('%')
 
-    member inline x.Bind< ^a when ^a : )>(fn: ^a -> _ , parts:string [], pos:int ) =
-        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(part, 1, 4))
+    //let parts = [|struct(1,5);struct(6,8)|]
+
+    // member inline x.Bind< ^a when ^a : )>(fn: ^a -> _ , route:string,parts:(struct(int*int)) [],pos:int ) =
+    //     let struct(s,e) = parts.[pos]
+    //     let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(part, 1, 4))
+    //     fn av
+
+    member inline x.Bind< ^a, ^b, ^c 
+                    when ^a : (static member GiraffeParse : string * int * int -> ^a)
+                    and  ^b : (static member GiraffeParse : string * int * int -> ^b)
+                    and  ^c : (static member GiraffeParse : string * int * int -> ^c)
+                    >(fn: ^a -> ^b -> ^c -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
+        let nfn = fn av
+        x.Bind< ^b, ^c>(nfn,path,parts,pos + 1)
+
+    member inline x.Bind< ^a, ^b 
+                    when ^a : (static member GiraffeParse : string * int * int -> ^a)
+                    and  ^b : (static member GiraffeParse : string * int * int -> ^b)
+                    >(fn: ^a -> ^b -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
+        x.Bind< ^b>(fn av,path,parts,pos + 1)
+        
+    member inline x.Bind< ^a when ^a : (static member GiraffeParse : string * int * int -> ^a)
+                    >(fn: ^a -> HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
         fn av
 
-    member inline x.Bind< ^a 
-                    when ^a : (static member GiraffeParse : string * int * int -> ^a)
-                    >(fn: ^a -> _ , parts:string [], pos:int ) =  
-        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(parts.[pos], 1, 4))
-        if pos = parts.Length - 1 then
-            fn av
-        else
-            
-        
-
     member x.Apply(path:string) : HttpHandler =
-        let rec go parts fn =
-            match parts with
-            | [] -> fn
-            | part :: t ->
-                let next = x.Bind<_>(fn,part)
-                go t next
-        go complied ifn           
+        let parts = [|struct(1,5);struct(6,8)|]
+        x.Bind
 
-let route1 = IBinder2<_>("foo/%i/%i",(fun i s -> Unchecked.defaultof<HttpHandler> ))
+//let route1 = IBinder2<_>("foo/%i/%i",(fun i s -> Unchecked.defaultof<HttpHandler> ))
 
 //let test = Binder.Parse("test%sand%i",(fun s i -> Unchecked.defaultof<HttpHandler> ))
         
