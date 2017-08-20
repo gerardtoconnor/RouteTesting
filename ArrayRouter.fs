@@ -597,10 +597,12 @@ type Eq<'a> =
 
 type IParser<'T> = string * int * int -> 'T 
 
+type String with
+    static member GiraffeParse (route:string,start,endy) = route.Substring(start,endy - start)
+
 type System.Int32 with 
     static member GiraffeParse (route:string,start,endy) = int (route.Substring(start,endy - start))
-type System.String with
-    static member GiraffeParse (route:string,start,endy) = route.Substring(start,endy - start)
+
 
 type Binder = class end
 type Binder with
@@ -652,6 +654,95 @@ type Binder with
     //     fn (Bind() )
 
 let handler  = Binder.Parse<_>("foo/%i/%i",(fun i s -> Unchecked.defaultof<HttpHandler> ))
+
+type Binder2 = class end
+type Binder2 with
+
+    static member inline Bind< ^a
+                    when ^a : (static member GiraffeParse : string * int * int -> ^a)
+                    >(fn: ^a -> _ ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
+        Binder2.Bind<_>(fn av,path,parts,pos + 1)
+
+    static member inline Bind< ^a
+                    when ^a : (member GiraffeParse : string * int * int -> ^a)
+                    >(fn: ^a -> _ ,path:string,parts: struct(int*int) [],pos:int ) =
+        let struct(s1,e1) = parts.[pos]                
+        let av : ^a = (^a : (member GiraffeParse : string * int * int -> ^a)(path,s1,e1))
+        Binder2.Bind<_>(fn av,path,parts,pos + 1)    
+        
+    static member inline Bind< ^a
+                    when ^a : not struct
+                    >(fn: HttpHandler ,path:string,parts: struct(int*int) [],pos:int ) =
+        fn
+    
+    // static member inline Parse<'a 
+    //                 when 'a : (static member GiraffeParse : string * int * int -> 'a)
+    //                 >(fmt:StringFormat<'a -> _ ,HttpHandler>, fn: 'a -> _ ) : HttpHandler =
+    //     let parts = [|struct(1,5);struct(6,8)|]
+    //     Binder2.Bind<'a>( fn ,fmt.Value)
+
+type RouteBind<'a
+            when 'a : (static member GiraffeParse : string * int * int -> 'a)
+            >(fmt:StringFormat<'a -> _ ,HttpHandler>, fn: 'a -> _ ) =
+    let iparts = [|struct(1,5);struct(6,8)|]
+    member inline x.Apply(path:string) =
+        Binder2.Bind<_>( fn , path , iparts , 0 )
+
+let rb = RouteBind<_>("foo/%i/%i",(fun i s -> Unchecked.defaultof<HttpHandler> ))
+
+type RBind2(fmt:StringFormat< ^a -> ^b -> HttpHandler, HttpHandler>,fn: ^a -> ^b -> HttpHandler) =
+    let iparts = [|struct(1,5);struct(6,8)|]
+    member inline x.Apply(path:string) =
+        
+        let struct(s0,e0) = iparts.[0]
+        let struct(s1,e1) = iparts.[1]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s0,e0))
+        let bv : ^b = (^b : (static member GiraffeParse : string * int * int -> ^b)(path,s1,e1))
+        
+        fn 
+        <| av
+        <| bv
+
+type RBind3(fmt:StringFormat< ^a -> ^b -> ^c -> HttpHandler, HttpHandler>,fn: ^a -> ^b -> ^c -> HttpHandler) =
+    let iparts = [|struct(1,5);struct(6,8)|]
+    member inline x.Apply(path:string) =
+        
+        let struct(s0,e0) = iparts.[0]
+        let struct(s1,e1) = iparts.[1]
+        let struct(s2,e2) = iparts.[2]                
+        let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(path,s0,e0))
+        let bv : ^b = (^b : (static member GiraffeParse : string * int * int -> ^b)(path,s1,e1))
+        let cv : ^c = (^c : (static member GiraffeParse : string * int * int -> ^c)(path,s2,e2))
+
+        fn 
+        <| av
+        <| bv
+        <| cv
+
+let rb3 = RBind2("test/%i/%s",(fun i s -> Unchecked.defaultof<HttpHandler>))
+
+    // static member inline Bind<'a when 'a : not struct>(fn: HttpHandler, part:string ) =
+    //     fn
+
+    // static member inline Bind< ^a when ^a : (static member GiraffeParse : IParser< ^a>)>(fn: ^a -> _ , part:string ) =
+    //     let av : ^a = (^a : (static member GiraffeParse : string * int * int -> ^a)(part, 1, 4))
+    //     Binder.Bind<_>(fn av,part)
+
+        // let next = (int part) |> fn
+        // Binder.Bind(next,part)
+
+    // static member Bind<'a when 'a : (static member GiraffeParse : IParser<'a>)>(fn: string -> _ , part:string ) =
+    //     let next = part |> fn
+    //     Binder.Bind<_>(next,part)
+
+
+
+    // static member Parse(fmt:StringFormat<'a -> HttpHandler,HttpHandler>, fn: 'a -> HttpHandler ) =
+    //     let chars = fmt.Value.ToCharArray()
+    //     fn (Bind() )
+
 
 
 type IBinder(fmt:StringFormat<'T,HttpHandler>, ifn: 'T ) =
